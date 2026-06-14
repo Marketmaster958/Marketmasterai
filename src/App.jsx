@@ -598,3 +598,185 @@ Respond ONLY with raw JSON (no markdown):
         )}
 
         {/* Tip List */}
+{tips.map((t) => {
+          const statusColor = { "Open": "blue", "Target Hit": "green", "SL Hit": "red", "Closed": "gray" }[t.status] || "gray";
+          const pnl = t.status === "Target Hit"
+            ? (((t.targetPrice - t.entryPrice) / t.entryPrice) * 100).toFixed(1)
+            : t.status === "SL Hit"
+            ? (((t.stopLoss - t.entryPrice) / t.entryPrice) * 100).toFixed(1)
+            : null;
+          return (
+            <div key={t.id} style={{ background: "#1a1f2e", border: "1px solid #1e2535", borderRadius: 14, padding: 16, marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: "#f1f5f9", marginBottom: 2 }}>{t.stockName}</div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>{new Date(t.date).toLocaleDateString()} • {t.timeframe}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <SignalBadge signal={t.signal} />
+                  <Badge label={t.status} color={statusColor} />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12 }}>
+                <MiniStat label="Entry" value={`₹${t.entryPrice}`} color="#94a3b8" />
+                <MiniStat label="Target" value={`₹${t.targetPrice}`} color="#22c55e" />
+                <MiniStat label="SL" value={`₹${t.stopLoss}`} color="#ef4444" />
+              </div>
+
+              {pnl !== null && (
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: pnl >= 0 ? "#22c55e" : "#ef4444" }}>
+                  Result: {pnl >= 0 ? "+" : ""}{pnl}%
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {t.status !== "Target Hit" && (
+                  <button onClick={() => updateTipStatus(t.id, "Target Hit")} style={smallBtn("#14532d", "#86efac")}>✅ Target Hit</button>
+                )}
+                {t.status !== "SL Hit" && (
+                  <button onClick={() => updateTipStatus(t.id, "SL Hit")} style={smallBtn("#450a0a", "#fca5a5")}>❌ SL Hit</button>
+                )}
+                {t.status !== "Open" && (
+                  <button onClick={() => updateTipStatus(t.id, "Open")} style={smallBtn("#1e3a5f", "#93c5fd")}>↩ Mark Open</button>
+                )}
+                {t.status === "Open" && (
+                  <button onClick={() => checkLivePrice(t)} disabled={priceChecks[t.id]?.loading} style={smallBtn("#1e3a5f", "#93c5fd")}>
+                    {priceChecks[t.id]?.loading ? "⏳ Checking..." : "🔄 Check Live Price"}
+                  </button>
+                )}
+                <button onClick={() => deleteTip(t.id)} style={smallBtn("#1e2535", "#64748b")}>🗑 Delete</button>
+              </div>
+
+              {priceChecks[t.id]?.error && (
+                <div style={{ marginTop: 10, fontSize: 12, color: "#f87171" }}>⚠️ {priceChecks[t.id].error}</div>
+              )}
+              {priceChecks[t.id]?.result && (
+                <div style={{ marginTop: 10, background: "#0f1117", border: "1px solid #1e2535", borderRadius: 10, padding: 12 }}>
+                  <div style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 4 }}>
+                    Current Price: <strong style={{ color: "#f1f5f9" }}>₹{priceChecks[t.id].result.currentPrice}</strong>
+                    {"  "}<Badge label={priceChecks[t.id].result.status} color={priceChecks[t.id].result.status === "Target Hit" ? "green" : priceChecks[t.id].result.status === "SL Hit" ? "red" : "blue"} />
+                  </div>
+                  <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4 }}>{priceChecks[t.id].result.note}</div>
+                  <div style={{ fontSize: 11, color: "#475569" }}>{priceChecks[t.id].result.asOf}</div>
+                  {(priceChecks[t.id].result.status === "Target Hit" || priceChecks[t.id].result.status === "SL Hit") && (
+                    <button onClick={() => updateTipStatus(t.id, priceChecks[t.id].result.status)} style={{ ...smallBtn("#14532d", "#86efac"), marginTop: 8 }}>
+                      Apply: Mark as {priceChecks[t.id].result.status}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      )}
+
+      {page === "subscribe" && (
+      <div style={{ maxWidth: 820, margin: "0 auto", padding: "20px 16px" }}>
+        <div style={{ background: "#1a1f2e", border: "1px solid #1e2535", borderRadius: 16, padding: 24, marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>⚙️ Setup Your Payment Details</div>
+          <div style={{ fontSize: 12, color: "#475569", marginBottom: 18 }}>Stored on this device/account only. Fill once — used to build your subscribe page below.</div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={lbl}>UPI ID</label>
+              <input style={inp} placeholder="yourname@upi" value={paySettings.upiId} onChange={(e) => setPaySettings((p) => ({ ...p, upiId: e.target.value }))} />
+            </div>
+            <div>
+              <label style={lbl}>Plan Name</label>
+              <input style={inp} placeholder="Monthly Tips Plan" value={paySettings.planName} onChange={(e) => setPaySettings((p) => ({ ...p, planName: e.target.value }))} />
+            </div>
+            <div>
+              <label style={lbl}>Price (₹)</label>
+              <input style={inp} type="number" placeholder="999" value={paySettings.price} onChange={(e) => setPaySettings((p) => ({ ...p, price: e.target.value }))} />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={lbl}>WhatsApp Number <span style={{ color: "#475569", fontWeight: 400, textTransform: "none" }}>(with country code, no + or spaces, e.g. 919876543210)</span></label>
+              <input style={inp} placeholder="919876543210" value={paySettings.whatsapp} onChange={(e) => setPaySettings((p) => ({ ...p, whatsapp: e.target.value }))} />
+            </div>
+          </div>
+
+          <button onClick={() => savePaySettings(paySettings)} style={{ marginTop: 16, width: "100%", padding: "12px", borderRadius: 10, border: "1px solid #1d4ed8", background: "#1e3a5f", color: "#93c5fd", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>
+            {paySaved ? "✓ Saved!" : "💾 Save Payment Settings"}
+          </button>
+        </div>
+
+        {/* Customer-facing subscribe card */}
+        <div style={{ background: "linear-gradient(135deg, #1a1f2e, #0f1117)", border: "1px solid #22c55e44", borderRadius: 16, padding: 28, textAlign: "center" }}>
+          <div style={{ fontSize: 12, color: "#22c55e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Customer-Facing Page</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#f1f5f9", marginBottom: 6 }}>{paySettings.planName || "Subscription Plan"}</div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: "#22c55e", marginBottom: 16 }}>
+            ₹{paySettings.price || "—"}<span style={{ fontSize: 14, color: "#64748b", fontWeight: 600 }}> / month</span>
+          </div>
+          <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 20, lineHeight: 1.7 }}>
+            Get AI-reviewed, professional stock tips with entry, target & stop-loss directly on WhatsApp.
+            {winRate !== null && <> Current verified win rate: <strong style={{ color: "#22c55e" }}>{winRate}%</strong>.</>}
+          </div>
+
+          {paySettings.upiId ? (
+            <a
+              href={`upi://pay?pa=${encodeURIComponent(paySettings.upiId)}&pn=${encodeURIComponent(paySettings.planName || "MarketMaster AI")}&am=${encodeURIComponent(paySettings.price || "0")}&cu=INR`}
+              style={{ display: "inline-block", padding: "14px 32px", borderRadius: 10, background: "linear-gradient(135deg, #22c55e, #16a34a)", color: "#fff", fontWeight: 800, fontSize: 15, textDecoration: "none", marginBottom: 12 }}
+            >
+              💳 Pay with UPI — ₹{paySettings.price || "0"}
+            </a>
+          ) : (
+            <div style={{ color: "#64748b", fontSize: 13, marginBottom: 12 }}>Add your UPI ID above to enable the pay button.</div>
+          )}
+
+          {paySettings.whatsapp && (
+            <div>
+              <a
+                href={`https://wa.me/${paySettings.whatsapp}?text=${encodeURIComponent(`Hi! I've paid ₹${paySettings.price} for ${paySettings.planName}. Here's my payment screenshot for verification.`)}`}
+                style={{ display: "inline-block", padding: "10px 24px", borderRadius: 10, background: "#0f1117", border: "1px solid #1e2535", color: "#93c5fd", fontWeight: 700, fontSize: 13, textDecoration: "none" }}
+              >
+                📲 Send Payment Proof on WhatsApp
+              </a>
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, color: "#475569", marginTop: 18, lineHeight: 1.6 }}>
+            After payment, share your screenshot on WhatsApp to get added to the tips group/channel.
+          </div>
+        </div>
+
+        {/* Security note */}
+        <div style={{ marginTop: 20, background: "#1e3a5f22", border: "1px solid #1d4ed8", borderRadius: 12, padding: 16, fontSize: 12, color: "#93c5fd", lineHeight: 1.7 }}>
+          <strong>🔒 About Security:</strong> This UPI link approach means there's no card data, login database, or server for anyone to hack — payments go directly through your bank's UPI app.
+          For higher trust and automation (auto-verify payments, recurring billing), you'd later set up a payment gateway like Razorpay with a proper hosted website — happy to guide you on that when you're ready.
+        </div>
+      </div>
+      )}
+      <style>{`@keyframes fadeIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }`}</style>
+    </div>
+  );
+}
+
+const lbl = { display: "block", fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" };
+const inp = { width: "100%", padding: "10px 12px", background: "#0f1117", border: "1px solid #1e2535", borderRadius: 8, color: "#e2e8f0", fontSize: 14, outline: "none", boxSizing: "border-box" };
+
+function StatCard({ label, value, color }) {
+  return (
+    <div style={{ background: "#1a1f2e", border: "1px solid #1e2535", borderRadius: 12, padding: "14px 10px", textAlign: "center" }}>
+      <div style={{ fontSize: 22, fontWeight: 800, color }}>{value}</div>
+      <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, color }) {
+  return (
+    <div style={{ background: "#0f1117", borderRadius: 8, padding: "8px 10px", border: "1px solid #1e2535" }}>
+      <div style={{ fontSize: 10, color: "#64748b", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color }}>{value}</div>
+    </div>
+  );
+}
+
+function smallBtn(bg, color) {
+  return {
+    padding: "6px 12px", borderRadius: 8, border: "none", background: bg, color,
+    cursor: "pointer", fontSize: 12, fontWeight: 700,
+  };
+}
