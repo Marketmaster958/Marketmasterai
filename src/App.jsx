@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 
 const sectorOptions = ["Nifty 50", "Bank Nifty", "IT Sector", "Pharma", "Auto", "FMCG", "Metal", "Energy"];
@@ -397,3 +398,203 @@ Respond ONLY with raw JSON (no markdown):
             <div style={{ gridColumn: "1 / -1" }}>
               <label style={lbl}>Stock / Index Name</label>
               <input style={inp} placeholder="e.g. Reliance Industries, HDFC Bank, Nifty 50" value={form.stockName} onChange={(e) => handleChange("stockName", e.target.value)} />
+</div>
+            <div>
+              <label style={lbl}>Sector</label>
+              <select style={inp} value={form.sector} onChange={(e) => handleChange("sector", e.target.value)}>
+                {sectorOptions.map((s) => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Signal</label>
+              <select style={inp} value={form.signal} onChange={(e) => handleChange("signal", e.target.value)}>
+                {signalOptions.map((s) => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Entry Price (₹)</label>
+              <input style={inp} type="number" placeholder="e.g. 2450" value={form.entryPrice} onChange={(e) => handleChange("entryPrice", e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Target Price (₹)</label>
+              <input style={inp} type="number" placeholder="e.g. 2700" value={form.targetPrice} onChange={(e) => handleChange("targetPrice", e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Stop Loss (₹)</label>
+              <input style={inp} type="number" placeholder="e.g. 2350" value={form.stopLoss} onChange={(e) => handleChange("stopLoss", e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Timeframe</label>
+              <select style={inp} value={form.timeframe} onChange={(e) => handleChange("timeframe", e.target.value)}>
+                {timeframeOptions.map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={lbl}>Risk Level</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                {["Low", "Medium", "High"].map((r) => (
+                  <button key={r} onClick={() => handleChange("riskLevel", r)} style={{
+                    padding: "7px 22px", borderRadius: 8, border: "1px solid",
+                    borderColor: form.riskLevel === r ? (r === "Low" ? "#22c55e" : r === "High" ? "#ef4444" : "#f59e0b") : "#1e2535",
+                    background: form.riskLevel === r ? (r === "Low" ? "#14532d" : r === "High" ? "#450a0a" : "#451a03") : "transparent",
+                    color: form.riskLevel === r ? "#f1f5f9" : "#64748b",
+                    cursor: "pointer", fontSize: 13, fontWeight: 600,
+                  }}>{r}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={lbl}>Technical Notes <span style={{ color: "#475569", fontWeight: 400, textTransform: "none" }}>(RSI, MACD, patterns, volume...)</span></label>
+              <textarea style={{ ...inp, height: 80, resize: "vertical" }}
+                placeholder="e.g. RSI at 62 and rising, MACD bullish crossover, breakout above 200 DMA with 2x average volume, double bottom pattern at support..."
+                value={form.technicalNotes} onChange={(e) => handleChange("technicalNotes", e.target.value)} />
+            </div>
+          </div>
+
+          {/* R:R Strip */}
+          {form.entryPrice && form.targetPrice && form.stopLoss && (
+            <div style={{ marginTop: 14, padding: "10px 16px", background: "#0f1117", borderRadius: 10, border: "1px solid #1e2535", display: "flex", gap: 24, fontSize: 13, flexWrap: "wrap" }}>
+              <span style={{ color: "#22c55e" }}>▲ +{upside}% upside</span>
+              <span style={{ color: "#ef4444" }}>▼ -{downside}% risk</span>
+              <span style={{ color: rr >= 2 ? "#22c55e" : rr >= 1.5 ? "#f59e0b" : "#ef4444", fontWeight: 700 }}>R:R {rr}x {rr < 1.5 ? "⚠️ Low" : rr >= 2 ? "✅ Good" : "🆗 Ok"}</span>
+            </div>
+          )}
+
+          {error && <div style={{ color: "#f87171", fontSize: 13, marginTop: 12 }}>⚠️ {error}</div>}
+
+          {/* Two Action Buttons */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 18 }}>
+            <button onClick={runReview} disabled={reviewLoading}
+              style={{ padding: "12px", borderRadius: 10, background: reviewLoading ? "#1e2535" : "#1e3a5f", color: reviewLoading ? "#64748b" : "#93c5fd", border: "1px solid #1d4ed8", cursor: reviewLoading ? "not-allowed" : "pointer", fontWeight: 700, fontSize: 14 }}>
+              {reviewLoading ? "⏳ Reviewing..." : "🔍 Review My Analysis"}
+            </button>
+            <button onClick={generateTip} disabled={tipLoading}
+              style={{ padding: "12px", borderRadius: 10, background: tipLoading ? "#1e2535" : "linear-gradient(135deg, #22c55e, #16a34a)", color: tipLoading ? "#64748b" : "#fff", border: "none", cursor: tipLoading ? "not-allowed" : "pointer", fontWeight: 700, fontSize: 14 }}>
+              {tipLoading ? "⏳ Generating..." : "✨ Generate Client Tip"}
+            </button>
+          </div>
+        </div>
+
+        {/* AI Review Panel */}
+        {(reviewLoading || review) && (
+          reviewLoading
+            ? <div style={{ background: "#1a1f2e", border: "1px solid #1e3a5f", borderRadius: 16, padding: 32, textAlign: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>🤖</div>
+                <div style={{ color: "#93c5fd", fontWeight: 600 }}>AI is reviewing your analysis...</div>
+                <div style={{ color: "#475569", fontSize: 13, marginTop: 4 }}>Checking indicators, R:R, consistency...</div>
+              </div>
+            : <ReviewPanel review={review} />
+        )}
+
+        {/* Tab Toggle for Tip Output */}
+        {tip && (
+          <div style={{ background: "#1a1f2e", border: "1px solid #22c55e33", borderRadius: 16, padding: 24, animation: "fadeIn 0.4s ease" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#22c55e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>✅ Client-Ready Tip</div>
+                <div style={{ fontSize: 19, fontWeight: 800, color: "#f1f5f9", letterSpacing: "-0.4px" }}>{tip.headline}</div>
+              </div>
+              <button onClick={copyTip} style={{ padding: "8px 16px", borderRadius: 8, background: copied ? "#14532d" : "#0f1117", border: "1px solid #1e2535", color: copied ? "#22c55e" : "#94a3b8", cursor: "pointer", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
+                {copied ? "✓ Copied!" : "📋 Copy"}
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
+              {[
+                { label: "Entry", value: `₹${tip.form.entryPrice}`, color: "#94a3b8" },
+                { label: `Target (+${tip.upside}%)`, value: `₹${tip.form.targetPrice}`, color: "#22c55e" },
+                { label: `Stop Loss (-${tip.downside}%)`, value: `₹${tip.form.stopLoss}`, color: "#ef4444" },
+              ].map((item) => (
+                <div key={item.label} style={{ background: "#0f1117", borderRadius: 10, padding: "10px 12px", border: "1px solid #1e2535" }}>
+                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{item.label}</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: item.color }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+              <SignalBadge signal={tip.form.signal} />
+              <Badge label={tip.form.timeframe} color="blue" />
+              <Badge label={tip.form.sector} color="gray" />
+              <Badge label={`Risk: ${tip.form.riskLevel}`} color={tip.form.riskLevel === "Low" ? "green" : tip.form.riskLevel === "High" ? "red" : "yellow"} />
+            </div>
+
+            <p style={{ fontSize: 14, color: "#cbd5e1", lineHeight: 1.75, marginBottom: 18 }}>{tip.summary}</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+              <div style={{ background: "#0f1117", borderRadius: 12, padding: 14, border: "1px solid #1e2535" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#22c55e", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>✅ Key Reasons</div>
+                {tip.keyReasons.map((r, i) => (
+                  <div key={i} style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 7, display: "flex", gap: 8, lineHeight: 1.5 }}>
+                    <span style={{ color: "#22c55e", flexShrink: 0 }}>•</span>{r}
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: "#0f1117", borderRadius: 12, padding: 14, border: "1px solid #1e2535" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>⚠️ Risk Factors</div>
+                {tip.riskFactors.map((r, i) => (
+                  <div key={i} style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 7, display: "flex", gap: 8, lineHeight: 1.5 }}>
+                    <span style={{ color: "#f59e0b", flexShrink: 0 }}>•</span>{r}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: "#0f1117", borderRadius: 12, padding: 14, border: "1px solid #1e2535", marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#60a5fa", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>📋 Action Plan</div>
+              <p style={{ fontSize: 14, color: "#cbd5e1", lineHeight: 1.75, margin: 0 }}>{tip.actionPlan}</p>
+            </div>
+
+            <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.6, padding: "10px 14px", background: "#0f1117", borderRadius: 8, border: "1px solid #1e2535", marginBottom: 14 }}>
+              <strong style={{ color: "#64748b" }}>Disclaimer:</strong> {tip.disclaimer}
+            </div>
+
+            <button onClick={saveCurrentTip} style={{
+              width: "100%", padding: "12px", borderRadius: 10, border: "1px solid #1d4ed8",
+              background: "#1e3a5f", color: "#93c5fd", cursor: "pointer", fontWeight: 700, fontSize: 14,
+            }}>
+              {savedMsg || "📊 Save to Track Record"}
+            </button>
+          </div>
+        )}
+
+        {!review && !tip && !reviewLoading && !tipLoading && (
+          <div style={{ textAlign: "center", padding: "28px 16px", color: "#475569", fontSize: 13 }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>🔍 + 📈</div>
+            <div style={{ fontWeight: 700, color: "#64748b", marginBottom: 4 }}>Two powerful tools in one</div>
+            <div style={{ color: "#475569" }}><strong style={{ color: "#93c5fd" }}>Review</strong> — AI checks your analysis for errors &nbsp;|&nbsp; <strong style={{ color: "#22c55e" }}>Generate</strong> — creates professional client tip</div>
+          </div>
+        )}
+      </div>
+      )}
+
+      {page === "tracker" && (
+      <div style={{ maxWidth: 820, margin: "0 auto", padding: "20px 16px" }}>
+
+        {/* Stats Summary */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+          <StatCard label="Total Tips" value={totalTips} color="#93c5fd" />
+          <StatCard label="Win Rate" value={winRate !== null ? `${winRate}%` : "—"} color={winRate >= 60 ? "#22c55e" : winRate !== null ? "#f59e0b" : "#94a3b8"} />
+          <StatCard label="Target Hit" value={wins} color="#22c55e" />
+          <StatCard label="SL Hit" value={losses} color="#ef4444" />
+        </div>
+
+        {openCount > 0 && (
+          <div style={{ background: "#1e3a5f22", border: "1px solid #1d4ed8", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#93c5fd" }}>
+            ℹ️ You have {openCount} open tip{openCount > 1 ? "s" : ""}. Update their status once target or stop loss is hit.
+          </div>
+        )}
+
+        {!tipsLoaded && (
+          <div style={{ textAlign: "center", padding: 40, color: "#475569" }}>Loading...</div>
+        )}
+
+        {tipsLoaded && tips.length === 0 && (
+          <div style={{ textAlign: "center", padding: "40px 16px", color: "#475569" }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>📊</div>
+            <div style={{ fontWeight: 700, color: "#64748b", marginBottom: 4 }}>No tips tracked yet</div>
+            <div style={{ fontSize: 13 }}>Generate a tip in the Analyze tab and click "Save to Track Record"</div>
+          </div>
+        )}
+
+        {/* Tip List */}
