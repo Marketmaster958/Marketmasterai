@@ -1,9 +1,10 @@
-
 import { useState, useEffect } from "react";
 
 const sectorOptions = ["Nifty 50", "Bank Nifty", "IT Sector", "Pharma", "Auto", "FMCG", "Metal", "Energy"];
 const signalOptions = ["Strong Buy", "Buy", "Neutral", "Sell", "Strong Sell"];
-const timeframeOptions = ["Intraday", "Short Term (1–2 weeks)", "Medium Term (1–3 months)", "Long Term (6+ months)"];const stockList = [
+const timeframeOptions = ["Intraday", "Short Term (1–2 weeks)", "Medium Term (1–3 months)", "Long Term (6+ months)"];
+
+const stockList = [
   "Reliance Industries", "Reliance Power", "Reliance Infrastructure",
   "Tata Consultancy Services (TCS)", "Tata Motors", "Tata Steel", "Tata Power", "Tata Chemicals", "Titan Company",
   "HDFC Bank", "HDFC Life", "HDFC Asset Management",
@@ -143,6 +144,12 @@ export default function StockTipsApp() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
+  // Stock name autocomplete
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const stockSuggestions = form.stockName.trim().length > 0
+    ? stockList.filter((s) => s.toLowerCase().includes(form.stockName.trim().toLowerCase())).slice(0, 8)
+    : [];
+
   // Track Record state
   const [tips, setTips] = useState([]);
   const [tipsLoaded, setTipsLoaded] = useState(false);
@@ -222,7 +229,8 @@ Respond ONLY with raw JSON (no markdown):
       console.error("Save failed", e);
     }
   };
-const saveCurrentTip = async () => {
+
+  const saveCurrentTip = async () => {
     if (!tip) return;
     const entry = {
       id: Date.now().toString(),
@@ -418,10 +426,40 @@ Respond ONLY with raw JSON (no markdown):
           <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", marginBottom: 18, textTransform: "uppercase", letterSpacing: "0.06em" }}>📝 Your Trade Setup</div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <div style={{ gridColumn: "1 / -1" }}>
+            <div style={{ gridColumn: "1 / -1", position: "relative" }}>
               <label style={lbl}>Stock / Index Name</label>
-              <input style={inp} placeholder="e.g. Reliance Industries, HDFC Bank, Nifty 50" value={form.stockName} onChange={(e) => handleChange("stockName", e.target.value)} />
-</div>
+              <input
+                style={inp}
+                placeholder="Type to search NSE/BSE stocks..."
+                value={form.stockName}
+                onChange={(e) => { handleChange("stockName", e.target.value); setShowSuggestions(true); }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                autoComplete="off"
+              />
+              {showSuggestions && stockSuggestions.length > 0 && (
+                <div style={{
+                  position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20,
+                  background: "#0f1117", border: "1px solid #22c55e44", borderRadius: 10,
+                  marginTop: 4, maxHeight: 260, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                }}>
+                  {stockSuggestions.map((s) => (
+                    <div
+                      key={s}
+                      onMouseDown={() => { handleChange("stockName", s); setShowSuggestions(false); }}
+                      style={{
+                        padding: "10px 14px", fontSize: 14, color: "#e2e8f0", cursor: "pointer",
+                        borderBottom: "1px solid #1e2535", transition: "background 0.15s",
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "#1a1f2e"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      📈 {s}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div>
               <label style={lbl}>Sector</label>
               <select style={inp} value={form.sector} onChange={(e) => handleChange("sector", e.target.value)}>
@@ -621,7 +659,7 @@ Respond ONLY with raw JSON (no markdown):
         )}
 
         {/* Tip List */}
-{tips.map((t) => {
+        {tips.map((t) => {
           const statusColor = { "Open": "blue", "Target Hit": "green", "SL Hit": "red", "Closed": "gray" }[t.status] || "gray";
           const pnl = t.status === "Target Hit"
             ? (((t.targetPrice - t.entryPrice) / t.entryPrice) * 100).toFixed(1)
