@@ -3,7 +3,30 @@ import { useState, useEffect } from "react";
 
 const sectorOptions = ["Nifty 50", "Bank Nifty", "IT Sector", "Pharma", "Auto", "FMCG", "Metal", "Energy"];
 const signalOptions = ["Strong Buy", "Buy", "Neutral", "Sell", "Strong Sell"];
-const timeframeOptions = ["Intraday", "Short Term (1–2 weeks)", "Medium Term (1–3 months)", "Long Term (6+ months)"];
+const timeframeOptions = ["Intraday", "Short Term (1–2 weeks)", "Medium Term (1–3 months)", "Long Term (6+ months)"];const stockList = [
+  "Reliance Industries", "Reliance Power", "Reliance Infrastructure",
+  "Tata Consultancy Services (TCS)", "Tata Motors", "Tata Steel", "Tata Power", "Tata Chemicals", "Titan Company",
+  "HDFC Bank", "HDFC Life", "HDFC Asset Management",
+  "ICICI Bank", "ICICI Prudential Life", "ICICI Lombard",
+  "State Bank of India (SBI)", "SBI Life Insurance", "SBI Cards",
+  "Infosys", "Wipro", "HCL Technologies", "Tech Mahindra", "LTIMindtree",
+  "Axis Bank", "Kotak Mahindra Bank", "IndusInd Bank", "Bank of Baroda", "Punjab National Bank",
+  "Bharti Airtel", "Vodafone Idea",
+  "Larsen & Toubro (L&T)", "Adani Enterprises", "Adani Ports", "Adani Green Energy", "Adani Power", "Adani Total Gas",
+  "Asian Paints", "Hindustan Unilever", "ITC", "Nestle India", "Britannia Industries",
+  "Maruti Suzuki", "Mahindra & Mahindra (M&M)", "Bajaj Auto", "Eicher Motors", "Hero MotoCorp", "Ashok Leyland",
+  "Sun Pharma", "Dr Reddy's Laboratories", "Cipla", "Divi's Laboratories", "Apollo Hospitals",
+  "UltraTech Cement", "Shree Cement", "Ambuja Cements",
+  "NTPC", "Power Grid Corporation", "Coal India", "ONGC", "Indian Oil Corporation (IOC)", "BPCL",
+  "Hindalco Industries", "Vedanta", "JSW Steel", "SAIL",
+  "Bajaj Finance", "Bajaj Finserv", "Bajaj Housing Finance",
+  "Zomato", "Paytm (One97 Communications)", "Nykaa", "PB Fintech (Policybazaar)",
+  "DLF", "Godrej Properties", "Oberoi Realty",
+  "Pidilite Industries", "Berger Paints", "Havells India", "Voltas",
+  "Grasim Industries", "Siemens India", "ABB India", "Cummins India",
+  "Trent", "Avenue Supermarts (DMart)", "Page Industries",
+  "Nifty 50", "Nifty Bank", "Nifty IT", "Nifty Pharma", "Nifty Auto", "Nifty FMCG", "Sensex"
+];
 
 function Badge({ label, color }) {
   const colors = {
