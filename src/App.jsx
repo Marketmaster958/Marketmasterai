@@ -146,9 +146,43 @@ export default function StockTipsApp() {
 
   // Stock name autocomplete
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const stockSuggestions = form.stockName.trim().length > 0
-    ? stockList.filter((s) => s.toLowerCase().includes(form.stockName.trim().toLowerCase())).slice(0, 8)
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [aiSearching, setAiSearching] = useState(false);
+  const [lastAiQuery, setLastAiQuery] = useState("");
+
+  // Local hardcoded matches (instant)
+  const localSuggestions = form.stockName.trim().length > 0
+    ? stockList.filter((s) => s.toLowerCase().includes(form.stockName.trim().toLowerCase())).slice(0, 5)
     : [];
+
+  // Combined suggestions: local first, then AI results
+  const allSuggestions = [
+    ...localSuggestions,
+    ...aiSuggestions.filter((a) => !localSuggestions.find((l) => l.toLowerCase() === a.name.toLowerCase())),
+  ].slice(0, 10);
+
+  // AI search trigger (runs when user types 3+ chars, debounced)
+  useEffect(() => {
+    const q = form.stockName.trim();
+    if (q.length < 3 || q === lastAiQuery) return;
+    const timer = setTimeout(async () => {
+      setAiSearching(true);
+      setLastAiQuery(q);
+      try {
+        const res = await fetch("/api/search-stocks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: q }),
+        });
+        const data = await res.json();
+        setAiSuggestions(data.results || []);
+      } catch (e) {
+        setAiSuggestions([]);
+      }
+      setAiSearching(false);
+    }, 600); // wait 600ms after user stops typing
+    return () => clearTimeout(timer);
+  }, [form.stockName]);
 
   // Track Record state
   const [tips, setTips] = useState([]);
@@ -429,34 +463,48 @@ Respond ONLY with raw JSON (no markdown):
             <div style={{ gridColumn: "1 / -1", position: "relative" }}>
               <label style={lbl}>Stock / Index Name</label>
               <input
-                style={inp}
-                placeholder="Type to search NSE/BSE stocks..."
+                style={{ ...inp, paddingRight: aiSearching ? 36 : 12 }}
+                placeholder="Type to search NSE/BSE stocks, F&O, Commodities..."
                 value={form.stockName}
-                onChange={(e) => { handleChange("stockName", e.target.value); setShowSuggestions(true); }}
+                onChange={(e) => { handleChange("stockName", e.target.value); setShowSuggestions(true); setAiSuggestions([]); }}
                 onFocus={() => setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                 autoComplete="off"
               />
-              {showSuggestions && stockSuggestions.length > 0 && (
+              {aiSearching && (
+                <div style={{ position: "absolute", right: 12, top: "65%", transform: "translateY(-50%)", fontSize: 12, color: "#64748b" }}>🔍</div>
+              )}
+              {showSuggestions && (allSuggestions.length > 0 || aiSearching) && (
                 <div style={{
                   position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20,
                   background: "#0f1117", border: "1px solid #22c55e44", borderRadius: 10,
-                  marginTop: 4, maxHeight: 260, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                  marginTop: 4, maxHeight: 300, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
                 }}>
-                  {stockSuggestions.map((s) => (
-                    <div
-                      key={s}
-                      onMouseDown={() => { handleChange("stockName", s); setShowSuggestions(false); }}
-                      style={{
-                        padding: "10px 14px", fontSize: 14, color: "#e2e8f0", cursor: "pointer",
-                        borderBottom: "1px solid #1e2535", transition: "background 0.15s",
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "#1a1f2e"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
-                      📈 {s}
-                    </div>
-                  ))}
+                  {aiSearching && allSuggestions.length === 0 && (
+                    <div style={{ padding: "10px 14px", fontSize: 13, color: "#64748b" }}>🔍 Searching NSE/BSE/MCX...</div>
+                  )}
+                  {allSuggestions.map((item, i) => {
+                    const isAi = typeof item === "object";
+                    const name = isAi ? item.name : item;
+                    const symbol = isAi ? item.symbol : null;
+                    const type = isAi ? item.type : "Stock";
+                    const typeColor = type === "Commodity" ? "#fb923c" : type === "F&O" ? "#a78bfa" : type === "Index" ? "#60a5fa" : type === "Currency" ? "#34d399" : "#22c55e";
+                    return (
+                      <div
+                        key={i}
+                        onMouseDown={() => { handleChange("stockName", name); setShowSuggestions(false); }}
+                        style={{
+                          padding: "10px 14px", fontSize: 14, color: "#e2e8f0", cursor: "pointer",
+                          borderBottom: "1px solid #1e2535", display: "flex", justifyContent: "space-between", alignItems: "center",
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = "#1a1f2e"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                      >
+                        <span>📈 {name}{symbol ? ` (${symbol})` : ""}</span>
+                        <span style={{ fontSize: 10, color: typeColor, fontWeight: 700, background: `${typeColor}22`, padding: "2px 6px", borderRadius: 6 }}>{type}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
