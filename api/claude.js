@@ -1,46 +1,28 @@
-// /api/claude.js
-// This is a SECRET backend function. Your API key stays here, never sent to browsers.
-// Runs on Vercel automatically when deployed.
-
-import Anthropic from "@anthropic-ai/sdk";
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-
   try {
-    const { prompt, useWebSearch } = req.body;
-
-    if (!prompt) {
-      return res.status(400).json({ error: "Missing prompt" });
-    }
-
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY, // Set this in Vercel settings (Step 5)
-    });
-
-    const requestBody = {
-      model: "claude-sonnet-4-6",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }],
-    };
-
-    if (useWebSearch) {
-      requestBody.tools = [{ type: "web_search_20250305", name: "web_search" }];
-    }
-
-    const response = await anthropic.messages.create(requestBody);
-
-    // Extract text content
-    const text = response.content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join("");
-
+    const { prompt } = req.body;
+    if (!prompt) return res.status(400).json({ error: "Missing prompt" });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "API key not configured" });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1000 },
+        }),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) return res.status(500).json({ error: "AI request failed." });
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     return res.status(200).json({ text });
   } catch (error) {
-    console.error("Claude API error:", error);
     return res.status(500).json({ error: "AI request failed. Please try again." });
   }
 }
