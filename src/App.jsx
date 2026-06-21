@@ -134,7 +134,7 @@ export default function StockTipsApp() {
   const [page, setPage] = useState("analyze"); // "analyze" | "tracker"
   const [form, setForm] = useState({
     stockName: "", sector: "Nifty 50", signal: "Buy",
-    entryPrice: "", targetPrice: "", stopLoss: "",
+    entryPrice: "", targetPrice: "", target2: "", target3: "", stopLoss: "",
     timeframe: "Short Term (1–2 weeks)", technicalNotes: "", riskLevel: "Medium",
   });
   const [review, setReview] = useState(null);
@@ -195,6 +195,48 @@ export default function StockTipsApp() {
 
   // Price-check state: { [tipId]: { loading, result, error } }
   const [priceChecks, setPriceChecks] = useState({});
+
+  // Customer management state
+  const [customers, setCustomers] = useState([]);
+  const [customerForm, setCustomerForm] = useState({ name: "", phone: "", plan: "Monthly", amount: "999", date: new Date().toISOString().split("T")[0] });
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+
+  // Load customers from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("customers-list");
+      if (raw) setCustomers(JSON.parse(raw));
+    } catch (e) {}
+  }, []);
+
+  const saveCustomers = async (list) => {
+    setCustomers(list);
+    try { localStorage.setItem("customers-list", JSON.stringify(list)); } catch (e) {}
+  };
+
+  const addCustomer = async () => {
+    if (!customerForm.name || !customerForm.phone) return;
+    const newCustomer = {
+      id: Date.now().toString(),
+      ...customerForm,
+      joinedDate: new Date().toISOString(),
+      status: "Active",
+    };
+    await saveCustomers([newCustomer, ...customers]);
+    setCustomerForm({ name: "", phone: "", plan: "Monthly", amount: "999", date: new Date().toISOString().split("T")[0] });
+    setShowAddCustomer(false);
+  };
+
+  const removeCustomer = async (id) => {
+    await saveCustomers(customers.filter((c) => c.id !== id));
+  };
+
+  const toggleCustomerStatus = async (id) => {
+    await saveCustomers(customers.map((c) => c.id === id ? { ...c, status: c.status === "Active" ? "Expired" : "Active" } : c));
+  };
+
+  const activeCustomers = customers.filter((c) => c.status === "Active");
+  const totalRevenue = customers.filter((c) => c.status === "Active").reduce((sum, c) => sum + parseFloat(c.amount || 0), 0);
 
   // Load saved settings on mount
   useEffect(() => {
@@ -377,22 +419,35 @@ Be specific. If R:R is below 1.5, warn them. If stop loss is too tight or too wi
     setTipLoading(true);
     setTip(null);
 
-    const prompt = `You are an expert Indian stock market analyst assistant. Transform this analyst's input into a professional client-ready stock tip.
+    const t1 = form.targetPrice;
+    const t2 = form.target2;
+    const t3 = form.target3;
+    const t1pct = upside;
+    const t2pct = t2 && form.entryPrice ? (((parseFloat(t2) - parseFloat(form.entryPrice)) / parseFloat(form.entryPrice)) * 100).toFixed(1) : null;
+    const t3pct = t3 && form.entryPrice ? (((parseFloat(t3) - parseFloat(form.entryPrice)) / parseFloat(form.entryPrice)) * 100).toFixed(1) : null;
 
-Input:
-- Stock: ${form.stockName} | Sector: ${form.sector} | Signal: ${form.signal}
-- Entry: ₹${form.entryPrice} | Target: ₹${form.targetPrice} (+${upside}%) | SL: ₹${form.stopLoss}
-- Timeframe: ${form.timeframe} | Risk: ${form.riskLevel}
-- Notes: ${form.technicalNotes || "Standard technical setup."}
+    const prompt = `You are a SEBI-registered senior stock market analyst writing a professional client tip. Your writing must be flawless — perfect grammar, no spelling mistakes, professional tone like a top financial advisory firm.
 
-Respond ONLY with raw JSON (no markdown):
+Analyst Input:
+- Stock/Index: ${form.stockName}
+- Sector: ${form.sector}
+- Signal: ${form.signal}
+- Entry Price: ₹${form.entryPrice}
+- Target 1 (T1): ₹${t1} (+${t1pct}%)${t2 ? `\n- Target 2 (T2): ₹${t2} (+${t2pct}%)` : ""}${t3 ? `\n- Target 3 (T3): ₹${t3} (+${t3pct}%)` : ""}
+- Stop Loss: ₹${form.stopLoss} (-${downside}%)
+- Timeframe: ${form.timeframe}
+- Risk Level: ${form.riskLevel}
+- Technical Notes: ${form.technicalNotes || "Standard technical setup."}
+
+Generate a PERFECT professional client tip. Respond ONLY with raw JSON (no markdown, no backticks):
 {
-  "headline": "short punchy headline",
-  "summary": "2-sentence professional summary",
-  "keyReasons": ["reason 1", "reason 2", "reason 3"],
-  "riskFactors": ["risk 1", "risk 2"],
-  "actionPlan": "clear 2-3 sentence action plan",
-  "disclaimer": "short standard disclaimer"
+  "headline": "Professional punchy headline (max 10 words, no errors)",
+  "summary": "Two perfectly written professional sentences summarizing the opportunity.",
+  "keyReasons": ["Professionally written reason 1", "Professionally written reason 2", "Professionally written reason 3"],
+  "riskFactors": ["Professionally written risk 1", "Professionally written risk 2"],
+  "actionPlan": "Three perfectly written sentences: when to enter, how to manage targets, and when to exit.",
+  "telegramMessage": "Complete ready-to-send Telegram message with emojis, perfectly formatted for clients. Include stock name, signal, entry, all targets, stop loss, timeframe, key reasons, and disclaimer. Professional tone, zero errors.",
+  "disclaimer": "This tip is for educational purposes only and does not constitute SEBI-registered investment advice. Please consult your financial advisor before investing. Trade at your own risk."
 }`;
 
     try {
@@ -404,7 +459,7 @@ Respond ONLY with raw JSON (no markdown):
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       const clean = data.text.replace(/```json|```/g, "").trim();
-      setTip({ ...JSON.parse(clean), form: { ...form }, upside, downside });
+      setTip({ ...JSON.parse(clean), form: { ...form }, upside, downside, t1, t2, t3, t1pct, t2pct, t3pct });
     } catch (e) {
       setError("Failed to generate tip. Please try again.");
     }
@@ -413,7 +468,7 @@ Respond ONLY with raw JSON (no markdown):
 
   const copyTip = () => {
     if (!tip) return;
-    const text = `📈 ${tip.headline}\n\n${tip.summary}\n\nEntry: ₹${tip.form.entryPrice} | Target: ₹${tip.form.targetPrice} (+${tip.upside}%) | SL: ₹${tip.form.stopLoss}\nSignal: ${tip.form.signal} | Timeframe: ${tip.form.timeframe}\n\n✅ Key Reasons:\n${tip.keyReasons.map((r) => `• ${r}`).join("\n")}\n\n⚠️ Risks:\n${tip.riskFactors.map((r) => `• ${r}`).join("\n")}\n\n📋 Action Plan:\n${tip.actionPlan}\n\n${tip.disclaimer}`;
+    const text = tip.telegramMessage || `📈 ${tip.headline}\n\n${tip.summary}\n\nEntry: ₹${tip.form.entryPrice}\nT1: ₹${tip.t1} (+${tip.t1pct}%)${tip.t2 ? `\nT2: ₹${tip.t2} (+${tip.t2pct}%)` : ""}${tip.t3 ? `\nT3: ₹${tip.t3} (+${tip.t3pct}%)` : ""}\nStop Loss: ₹${tip.form.stopLoss} (-${tip.downside}%)\n\nTimeframe: ${tip.form.timeframe}\n\n✅ Key Reasons:\n${tip.keyReasons.map((r) => `• ${r}`).join("\n")}\n\n⚠️ Risk Factors:\n${tip.riskFactors.map((r) => `• ${r}`).join("\n")}\n\n📋 Action Plan:\n${tip.actionPlan}\n\n⚠️ ${tip.disclaimer}`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -448,6 +503,12 @@ Respond ONLY with raw JSON (no markdown):
               background: page === "subscribe" ? "#22c55e" : "transparent",
               color: page === "subscribe" ? "#0f1117" : "#94a3b8",
             }}>💳 Subscribe</button>
+            <button onClick={() => setPage("customers")} style={{
+              padding: "8px 16px", borderRadius: 8, border: "1px solid #1e2535", cursor: "pointer",
+              fontWeight: 700, fontSize: 13,
+              background: page === "customers" ? "#22c55e" : "transparent",
+              color: page === "customers" ? "#0f1117" : "#94a3b8",
+            }}>👥 Customers</button>
           </div>
         </div>
       </div>
@@ -525,8 +586,16 @@ Respond ONLY with raw JSON (no markdown):
               <input style={inp} type="number" placeholder="e.g. 2450" value={form.entryPrice} onChange={(e) => handleChange("entryPrice", e.target.value)} />
             </div>
             <div>
-              <label style={lbl}>Target Price (₹)</label>
-              <input style={inp} type="number" placeholder="e.g. 2700" value={form.targetPrice} onChange={(e) => handleChange("targetPrice", e.target.value)} />
+              <label style={lbl}>Target 1 — T1 (₹)</label>
+              <input style={inp} type="number" placeholder="e.g. 2600" value={form.targetPrice} onChange={(e) => handleChange("targetPrice", e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Target 2 — T2 (₹) <span style={{ color: "#475569", fontWeight: 400 }}>optional</span></label>
+              <input style={inp} type="number" placeholder="e.g. 2750" value={form.target2} onChange={(e) => handleChange("target2", e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Target 3 — T3 (₹) <span style={{ color: "#475569", fontWeight: 400 }}>optional</span></label>
+              <input style={inp} type="number" placeholder="e.g. 2900" value={form.target3} onChange={(e) => handleChange("target3", e.target.value)} />
             </div>
             <div>
               <label style={lbl}>Stop Loss (₹)</label>
@@ -608,17 +677,31 @@ Respond ONLY with raw JSON (no markdown):
               </button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
-              {[
-                { label: "Entry", value: `₹${tip.form.entryPrice}`, color: "#94a3b8" },
-                { label: `Target (+${tip.upside}%)`, value: `₹${tip.form.targetPrice}`, color: "#22c55e" },
-                { label: `Stop Loss (-${tip.downside}%)`, value: `₹${tip.form.stopLoss}`, color: "#ef4444" },
-              ].map((item) => (
-                <div key={item.label} style={{ background: "#0f1117", borderRadius: 10, padding: "10px 12px", border: "1px solid #1e2535" }}>
-                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{item.label}</div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: item.color }}>{item.value}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 18 }}>
+              <div style={{ background: "#0f1117", borderRadius: 10, padding: "10px 12px", border: "1px solid #1e2535" }}>
+                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Entry</div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "#94a3b8" }}>₹{tip.form.entryPrice}</div>
+              </div>
+              <div style={{ background: "#0f1117", borderRadius: 10, padding: "10px 12px", border: "1px solid #1e2535" }}>
+                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>Stop Loss (-{tip.downside}%)</div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "#ef4444" }}>₹{tip.form.stopLoss}</div>
+              </div>
+              <div style={{ background: "#0d2818", borderRadius: 10, padding: "10px 12px", border: "1px solid #166534" }}>
+                <div style={{ fontSize: 11, color: "#22c55e", marginBottom: 4 }}>🎯 Target 1 (+{tip.t1pct}%)</div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "#22c55e" }}>₹{tip.t1}</div>
+              </div>
+              {tip.t2 && (
+                <div style={{ background: "#0d2818", borderRadius: 10, padding: "10px 12px", border: "1px solid #166534" }}>
+                  <div style={{ fontSize: 11, color: "#22c55e", marginBottom: 4 }}>🎯 Target 2 (+{tip.t2pct}%)</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: "#22c55e" }}>₹{tip.t2}</div>
                 </div>
-              ))}
+              )}
+              {tip.t3 && (
+                <div style={{ background: "#0d2818", borderRadius: 10, padding: "10px 12px", border: "1px solid #166534", gridColumn: tip.t2 ? "auto" : "1 / -1" }}>
+                  <div style={{ fontSize: 11, color: "#22c55e", marginBottom: 4 }}>🎯 Target 3 (+{tip.t3pct}%)</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: "#22c55e" }}>₹{tip.t3}</div>
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
@@ -648,6 +731,14 @@ Respond ONLY with raw JSON (no markdown):
                 ))}
               </div>
             </div>
+
+            {/* Telegram Message Preview */}
+            {tip.telegramMessage && (
+              <div style={{ background: "#0f1117", borderRadius: 12, padding: 16, border: "1px solid #1e3a5f", marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#60a5fa", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>📲 Ready-to-Send Telegram Message</div>
+                <pre style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0 }}>{tip.telegramMessage}</pre>
+              </div>
+            )}
 
             <div style={{ background: "#0f1117", borderRadius: 12, padding: 14, border: "1px solid #1e2535", marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#60a5fa", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>📋 Action Plan</div>
@@ -857,7 +948,136 @@ Respond ONLY with raw JSON (no markdown):
         </div>
       </div>
       )}
-      <style>{`@keyframes fadeIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }`}</style>
+      {page === "customers" && (
+      <div style={{ maxWidth: 820, margin: "0 auto", padding: "20px 16px" }}>
+
+        {/* Stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
+          <div style={{ background: "#1a1f2e", border: "1px solid #1e2535", borderRadius: 12, padding: "14px 10px", textAlign: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#22c55e" }}>{activeCustomers.length}</div>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, textTransform: "uppercase" }}>Active</div>
+          </div>
+          <div style={{ background: "#1a1f2e", border: "1px solid #1e2535", borderRadius: 12, padding: "14px 10px", textAlign: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#93c5fd" }}>{customers.length}</div>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, textTransform: "uppercase" }}>Total</div>
+          </div>
+          <div style={{ background: "#1a1f2e", border: "1px solid #1e2535", borderRadius: 12, padding: "14px 10px", textAlign: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#f59e0b" }}>₹{totalRevenue.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, textTransform: "uppercase" }}>Monthly</div>
+          </div>
+        </div>
+
+        {/* Add Customer Button */}
+        <button onClick={() => setShowAddCustomer(!showAddCustomer)} style={{
+          width: "100%", padding: 12, borderRadius: 10, border: "1px solid #22c55e",
+          background: "#14532d", color: "#86efac", cursor: "pointer", fontWeight: 700, fontSize: 14, marginBottom: 16,
+        }}>
+          {showAddCustomer ? "✕ Cancel" : "➕ Add New Customer / Payment"}
+        </button>
+
+        {/* Add Customer Form */}
+        {showAddCustomer && (
+          <div style={{ background: "#1a1f2e", border: "1px solid #22c55e44", borderRadius: 16, padding: 20, marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", marginBottom: 16, textTransform: "uppercase" }}>New Customer</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={lbl}>Customer Name</label>
+                <input style={inp} placeholder="e.g. Rajesh Kumar" value={customerForm.name} onChange={(e) => setCustomerForm((f) => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label style={lbl}>WhatsApp Number</label>
+                <input style={inp} placeholder="919876543210" value={customerForm.phone} onChange={(e) => setCustomerForm((f) => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div>
+                <label style={lbl}>Amount Paid (₹)</label>
+                <input style={inp} type="number" placeholder="999" value={customerForm.amount} onChange={(e) => setCustomerForm((f) => ({ ...f, amount: e.target.value }))} />
+              </div>
+              <div>
+                <label style={lbl}>Plan</label>
+                <select style={inp} value={customerForm.plan} onChange={(e) => setCustomerForm((f) => ({ ...f, plan: e.target.value }))}>
+                  <option>Monthly</option>
+                  <option>Quarterly</option>
+                  <option>Yearly</option>
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Payment Date</label>
+                <input style={inp} type="date" value={customerForm.date} onChange={(e) => setCustomerForm((f) => ({ ...f, date: e.target.value }))} />
+              </div>
+            </div>
+            <button onClick={addCustomer} style={{ marginTop: 14, width: "100%", padding: 12, borderRadius: 10, background: "linear-gradient(135deg, #22c55e, #16a34a)", color: "#fff", border: "none", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>
+              ✅ Save Customer
+            </button>
+          </div>
+        )}
+
+        {/* Customer List */}
+        {customers.length === 0 && (
+          <div style={{ textAlign: "center", padding: "40px 16px", color: "#475569" }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>👥</div>
+            <div style={{ fontWeight: 700, color: "#64748b", marginBottom: 4 }}>No customers yet</div>
+            <div style={{ fontSize: 13 }}>Add your first paying customer above</div>
+          </div>
+        )}
+
+        {customers.map((c) => (
+          <div key={c.id} style={{ background: "#1a1f2e", border: `1px solid ${c.status === "Active" ? "#22c55e33" : "#1e2535"}`, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#f1f5f9", marginBottom: 2 }}>👤 {c.name}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>Joined: {new Date(c.joinedDate).toLocaleDateString()} • {c.plan} Plan</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                <span style={{ fontSize: 18, fontWeight: 800, color: "#22c55e" }}>₹{c.amount}</span>
+                <span style={{
+                  fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700,
+                  background: c.status === "Active" ? "#14532d" : "#1e2535",
+                  color: c.status === "Active" ? "#86efac" : "#64748b",
+                  border: `1px solid ${c.status === "Active" ? "#166534" : "#334155"}`,
+                }}>{c.status}</span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {/* WhatsApp Chat */}
+              <a href={`https://wa.me/${c.phone}?text=${encodeURIComponent("Hi! This is MarketMaster AI. How can I help you today?")}`}
+                style={{ padding: "6px 12px", borderRadius: 8, background: "#14532d", color: "#86efac", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+                💬 WhatsApp
+              </a>
+              {/* Send Today's Tip */}
+              <a href={`https://wa.me/${c.phone}?text=${encodeURIComponent("📈 Today's MarketMaster AI Tip is ready! Check our channel for the latest update.")}`}
+                style={{ padding: "6px 12px", borderRadius: 8, background: "#1e3a5f", color: "#93c5fd", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+                📲 Send Tip
+              </a>
+              {/* Toggle Status */}
+              <button onClick={() => toggleCustomerStatus(c.id)} style={{ padding: "6px 12px", borderRadius: 8, background: "#451a03", color: "#fb923c", fontSize: 12, fontWeight: 700, border: "none", cursor: "pointer" }}>
+                {c.status === "Active" ? "⏸ Expire" : "▶ Activate"}
+              </button>
+              {/* Delete */}
+              <button onClick={() => removeCustomer(c.id)} style={{ padding: "6px 12px", borderRadius: 8, background: "#1e2535", color: "#64748b", fontSize: 12, fontWeight: 700, border: "none", cursor: "pointer" }}>
+                🗑 Remove
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {/* WhatsApp Group Broadcast */}
+        {customers.length > 0 && (
+          <div style={{ background: "#1a1f2e", border: "1px solid #1e2535", borderRadius: 14, padding: 16, marginTop: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", marginBottom: 10, textTransform: "uppercase" }}>📢 Broadcast to All Active Customers</div>
+            <div style={{ fontSize: 12, color: "#475569", marginBottom: 12 }}>Send a message to all {activeCustomers.length} active customers one by one via WhatsApp</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {activeCustomers.map((c) => (
+                <a key={c.id} href={`https://wa.me/${c.phone}?text=${encodeURIComponent("📈 New tip alert! Check MarketMaster AI channel for today's stock tip.")}`}
+                  style={{ padding: "6px 12px", borderRadius: 8, background: "#14532d", color: "#86efac", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+                  {c.name}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      )}
     </div>
   );
 }
